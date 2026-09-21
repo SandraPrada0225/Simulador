@@ -1,50 +1,49 @@
-# vamos a identificar el tipo de automata
-# si se ingresan cuatro elementos de inicio entonces es MTD
-# por el contrario si se ingresan tres elementos es un AFD
+# MTD: python simuladornew.py programaMTD.txt cintaMTD.txt
+# AFD: python simuladornew.py programaAFD.txt cintaAFD.txt
+
+import sys
 from collections import deque
 
-#hay que verificar que no se repitan las reglas Multiple definitions
 
-def VerificarMultipleDefinitios(elementos, inicio):
-    definitios = {}
-    for i in range(inicio,len(elementos)):
-        clave = elementos[i][0]
-        valor = elementos[i][1]
-        if clave in definitios and definitios[clave] == valor:
-            return True
-        definitios[clave] = valor
-    return False
+class MultipleDefinitionsError(Exception):
+    pass
 
-def AFD(elementos, ejemplos):
-    for i in range(len(ejemplos)):
-        estado = elementos[0][0]
-        ejemplo = ejemplos[i]
-        print("el ejemplo es " + ejemplo)
-        for j in range(len(ejemplo)):
-            caracter = ejemplo[j]
-            for k in range(2,len(elementos)):
-                if estado == elementos[k][0]:
-                        if caracter == elementos[k][1]:
-                            estado = elementos[k][2]
-                            break
-        n = 0
-        while n < len(elementos[1]):
-            if estado == (elementos[1][n]): 
-                print(f"TRUE!!!")
-                break
-            n = n + 3 
-        if n > len(elementos[1]):
-            print("FALSE!!!")
+def verificar_multiples_definiciones(elementos):
+    definidas = []
+    for estado, simbolo, *_ in elementos:
+        if (estado, simbolo) in definidas:
+            raise MultipleDefinitionsError(f"Multiple definitions!!! estado {estado} con simbolo {simbolo}")
+        definidas.append((estado, simbolo))
 
-def MTD(elementos, ejemplo):
-    confirmacion = False
-    estado = 'q0'
+def afd(elementos, estado_inicial, cinta):
+    transiciones = {}
+    finales = []
+    for estado, simbolo, siguiente in elementos:
+        if '*' in estado:
+            estado = estado.strip('*')
+            finales.append(estado)
+        transiciones[estado, simbolo] = siguiente
+
+    estado = estado_inicial
+    for simbolo in cinta:
+        if (estado, simbolo) not in transiciones:
+            return False
+        estado = transiciones[estado, simbolo]
+    return estado in finales
+
+mensaje = {True: 'Aceptada', False: 'Rechazada'}
+
+MAX_PASOS = 10000
+
+def mtd(elementos, cinta):
+    estado = '0' or 'q0'
     posicion = 0
-    input = ejemplo[0]
-    input.replace(" ", "_")
-    nuevo_string = deque(input)
-    error = True
-    while error == True and posicion < 10:
+    entrada = cinta[0]
+    entrada.replace(" ", "_")
+    nuevo_string = deque(entrada)
+    pasos = 0
+    while pasos < MAX_PASOS:
+        pasos += 1
         confirmacion = False
         for i in range(len(elementos)):
             if estado == elementos[i][0]:
@@ -63,40 +62,56 @@ def MTD(elementos, ejemplo):
                     confirmacion = True
         resultado = "".join(nuevo_string)
         resultado.replace("_", " ")
-        print(resultado)
         if confirmacion == False:
-            error = False
+            print(f"Resultado: {resultado}")
             break
+    else:
+        print(f"La maquina no se detuvo despues de {MAX_PASOS} pasos")
 
-with open("ejemplo.txt", "r", encoding="utf-8") as archivo:
+def leer_programa(ruta_programa):
     elementos = []
-    for linea in archivo:
-        linea_limpia = linea.strip()
-        if linea_limpia:
-            palabras = linea_limpia.split()
-            elementos.append(palabras)
+    with open(ruta_programa, "r", encoding="utf-8") as archivo:
+        for linea in archivo:
+            linea_limpia = linea.strip()
+            if linea_limpia:
+                palabras = linea_limpia.split()
+                elementos.append(palabras)
+    return elementos
 
+def leer_cinta(ruta_cinta):
+    with open(ruta_cinta, "r", encoding="utf-8") as archivo:
+        cinta = [linea.rstrip() for linea in archivo]
+    if not cinta:
+        cinta.append("_")
+    return cinta
 
-with open("cinta.txt", "r", encoding="utf-8") as archivo:
-    ejemplo = [linea.rstrip() for linea in archivo]
-    if not ejemplo:
-            ejemplo.append("_")  
+def main():
+    if len(sys.argv) != 3:
+        print("Uso: python simuladornew.py <programaMTD.txt> <cintaMTD.txt>")
+        sys.exit(1)
 
-#contamos las lineas y evaluamos la primera linea
-total_lineas = len(elementos)
-total_elementos = len(elementos[0])
-inicio = 0
-if total_elementos == 1:
-    inicio = 2
-    print("este es un AFD")
-    if VerificarMultipleDefinitios(elementos, inicio):
-        print("Multiple definitions!!!")
+    elementos = leer_programa(sys.argv[1])
+    cinta = leer_cinta(sys.argv[2])
+
+    es_afd = len(elementos[0]) == 3
+
+    print("\n|--- Automata Finito Determinista ---|" if es_afd else "\n|--- Maquina de Turing Determinista ---|")
+
+    try:
+        verificar_multiples_definiciones(elementos)
+    except MultipleDefinitionsError as error:
+        print(error)
+        sys.exit(1)
+
+    if es_afd:
+        for entrada in cinta:
+            entrada = entrada.strip()
+            print(f"Cinta Inicial: {entrada}")
+            print(f"Resultado: {mensaje[afd(elementos, '0', entrada)]}")
     else:
-        AFD(elementos, ejemplo)
-else:
-    print("este es un MTD")
-    if VerificarMultipleDefinitios(elementos, inicio):
-        print("Multiple definitions!!!")
-    else:
-        MTD(elementos, ejemplo)
+        print(f"Cinta Inicial: {str(cinta)}")
+        mtd(elementos, cinta)
 
+
+if __name__ == "__main__":
+    main()
